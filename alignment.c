@@ -1,5 +1,5 @@
 //
-// Created by miken on 7/18/2018.
+// Created by miken on 7/20/2018.
 //
 #include <stdio.h>
 #include <stdbool.h>
@@ -8,7 +8,8 @@
 #include <math.h>
 #include <stdlib.h>
 #include <ctype.h>
-#include "pdistcalc.h"
+#include "alignment.h"
+
 
 
 #define MAXCODES 20
@@ -38,42 +39,16 @@
 #endif /* USE_SSE3 */
 
 long szAllAlloc = 0;
-long mymallocUsed = 0;		/* useful allocations by mymalloc */
+long mymallocUsed = 0;
+int nCodes = 4;
 
-char *usage =
-        "Usage for P-Distance Calculator:                                           \n"
-        "                                                                           \n"
-        "    ./pd [options]                                                         \n"
-        "                                                                           \n"
-        "Common options:                                                            \n"
-        "                                                                           \n"
-        "    -max        outputs the maximum p-distance instead of the average      \n"
-        "                pairwise.                                                  \n"
-        "                                                                           \n"
-        "    -aln        path to FASTA file containing the alignment. If this is    \n"
-        "                not given, alignment sequences are assumed to come via     \n"
-        "                stdin. If the alignment comes via stdin, nothing else      \n"
-        "                can be given via stdin.                                    \n"
-        "                                                                           \n"
-        "    -sub        path to file containing a subset of sequences to be        \n"
-        "                used for the computation. File should be one sequence      \n"
-        "                name per line. Specified sequences that are not            \n"
-        "                actually in the fasta are ignored.                         \n"
-        "                                                                           \n"
-        "    -n_sub      number of sequences in the subset list. If omitted,        \n"
-        "                calculates p-dist on the whole file.                       \n"
-        "                                                                           \n"
-        "    -verbose    if given, program prints several intermediate values to    \n"
-        "                stdout                                                     \n"
-        "                                                                           \n"
-        "    -debug      Goes into debug mode, prints some stuff and then exits     \n"
-        "                                                                           \n"
-        "    -h          Prints this help description and then terminates           \n";
 
 
 //line 3629 in fasttree.c
-alignment_t *ReadAlignment(/*IN*/FILE *fp, bool bQuote) {
+alignment_t *ReadAlignment(/*IN*/FILE *fp) {
     /* bQuote supports the -quote option */
+    bool bQuote = false;
+
     int nSeq = 0;
     int nPos = 0;
     char **names = NULL;
@@ -290,7 +265,26 @@ alignment_t *ReadAlignment(/*IN*/FILE *fp, bool bQuote) {
     align->names = names;
     align->seqs = seqs;
     align->nSaved = nSaved;
+    align->larr = (listentry_t**)malloc(align->nSeq * sizeof(listentry_t*));
+
+    // Make hashable index:
+    for (i=0; i<align->nSeq; i++) {
+        align->larr[i] = malloc(sizeof(listentry_t));
+        align->larr[i]->name = align->names[i];
+        align->larr[i]->pos = i;
+    }
+    qsort(&align->larr[0], align->nSeq, sizeof(listentry_t*),l_entry_compare_qsort);
     return(align);
+}
+
+int alignment_get_seq_position_by_name(alignment_t *aln, char *seqname)
+{
+    void *bsres;
+    listentry_t *bsres_le;
+
+    bsres = bsearch(seqname,&aln->larr[0],aln->nSeq, sizeof(listentry_t*),l_entry_compare_bsearch);
+    bsres_le = *(listentry_t**)bsres;
+    return bsres_le->pos;
 }
 
 void *mymalloc(size_t sz) {
@@ -359,16 +353,15 @@ void *myfree(void *p, size_t sz) {
     return(NULL);
 }
 
-void zero_2_int_arrs(int* arr1, int* arr2, int len)
-{
-    int i = 0;
-    for (i=0; i<len; i++) {
-        arr1[i] = 0;
-        arr2[i] = 0;
-    }
-}
+/*
+ *   The following struct and functions create a hash-table to get
+ *   the position of a particular sequence (by name) in the
+ *   alignment in log time.
+ *
+ * */
 
-int l_entry_compare(const void *a, const void *b)
+
+int l_entry_compare_qsort(const void *a, const void *b)
 {
     int j;
     listentry_t* a_le;
@@ -377,179 +370,10 @@ int l_entry_compare(const void *a, const void *b)
     b_le = *(listentry_t**)(b);
     return strcmp(a_le->name, b_le->name);
 }
-int l_entry_compare_search(const void *a, const void *b)
+int l_entry_compare_bsearch(const void *a, const void *b)
 {
     char *a_le;
-    listentry_t *b_le;
-    a_le = (char*) (a);
+    listentry_t *b_le;    a_le = (char*) (a);
     b_le = *(listentry_t **) (b);
     return strcmp(a_le, b_le->name);
-}
-
-int main(int argc, char *argv[]) {
-    int ar;
-    bool maxpd = false;
-    bool debug = false;
-    bool verbose = false;
-    int aln_file = -1;
-    int sub_file = -1;
-    int n_sub = -1;
-    int i,j,k, runct, i_ind, j_ind;
-    double runtot = 0.;
-    double pd;
-    runct = 0;
-
-    // Processing some options
-    for (ar = 0; ar < argc; ar++)
-    {
-        if (strcmp(argv[ar],"-h")==0) {
-            printf("%s\n",usage);
-        } else if (strcmp(argv[ar],"-max")==0) {
-            maxpd = true;
-        } else if (strcmp(argv[ar],"-aln")==0) {
-            aln_file = ar + 1;
-        } else if (strcmp(argv[ar],"-sub")==0) {
-            sub_file = ar + 1;
-        } else if (strcmp(argv[ar],"-n_sub")==0) {
-            if (argc>ar+1) {
-                n_sub = atoi(argv[ar+1]);
-            }
-        } else if (strcmp(argv[ar],"-debug")==0) {
-            debug = true;
-            printf(" **** IN DEBUG MODE **** \n");
-            printf("  -max\t%d\n",maxpd);
-            printf("  -aln\t%d, %s\n",aln_file, (aln_file!=-1 ? argv[aln_file] : "(stdin)"));
-            printf("  -sub\t%d\n", sub_file);
-            printf("  -n_sub\t%d\n", n_sub);
-        } else if (strcmp(argv[ar],"-verbose")==0) {
-            verbose = true;
-        }
-    }
-
-    // Reading the Input Alignment
-    bool bQuote = false;
-    alignment_t *aln;
-    if (aln_file==-1) {
-        aln = ReadAlignment(stdin,bQuote);
-    } else {
-        FILE *aln_f = fopen(argv[aln_file],"r");
-        aln = ReadAlignment(aln_f,bQuote);
-    }
-
-    // Making a list of the sequences and noting the order it appears
-    listentry_t** larr = (listentry_t**)malloc(aln->nSeq * sizeof(listentry_t*));
-    for (i=0; i<aln->nSeq; i++) {
-        larr[i] = malloc(sizeof(listentry_t));
-        larr[i]->name = aln->names[i];
-        larr[i]->pos = i;
-//        larr[i]->name = (char*)malloc(200);
-    }
-    qsort(&larr[0], aln->nSeq, sizeof(listentry_t*),l_entry_compare);
-
-
-    // Reading the Subset List
-    int pos;
-    char *myc;
-    void *bsres;
-    listentry_t *bsres_le;
-
-    char** subset;
-    int* subset_seq_inds;
-    if (n_sub == -1) {
-        if (verbose) printf("No sequence subset count found, computing on whole alignment\n");
-        n_sub = aln->nSeq;
-        subset_seq_inds = (int*)malloc(n_sub * sizeof(int));
-        for (i=0; i<n_sub; i++) {
-            subset_seq_inds[i] = i;
-        }
-        //
-        // Make the appropriate dummy index here
-        //
-    } else {
-        subset = (char**)malloc(n_sub * sizeof(char*));
-        subset_seq_inds = (int*)malloc(n_sub * sizeof(int));
-
-        FILE *subset_in = sub_file!=-1 ? fopen(argv[sub_file], "r") : stdin;
-        for (i=0; i<n_sub; i++) {
-            subset[i] = (char*)malloc(MAX_SEQ_NAME_SIZE);
-            fgets(subset[i],MAX_SEQ_NAME_SIZE,subset_in);
-            myc = strchr(subset[i],10);
-            pos = myc-subset[i];
-            subset[i][pos]=0;
-            bsres = bsearch(subset[i],&larr[0],aln->nSeq, sizeof(listentry_t*),l_entry_compare_search);
-            bsres_le = *(listentry_t**)bsres;
-            subset_seq_inds[i] = bsres_le->pos;
-        }
-    }
-
-    if (debug) {
-        for (i=0; i<n_sub; i++) {
-            printf("%s\t%d\n",subset[i],subset_seq_inds[i]);
-            return 0;
-        }
-    }
-
-
-    // Compute the average (or max) pairwise p-distance
-    int* comp = (int*)malloc(n_sub * sizeof(int)); //(COMP)arable sequence residues (i.e. ungapped)
-    int* same = (int*)malloc(n_sub * sizeof(int));
-    long long all_comp = 0;
-    long long all_same = 0;
-
-    for (i=0; i<n_sub; i++){
-        zero_2_int_arrs(comp,same,n_sub);
-        i_ind = subset_seq_inds[i];
-
-        for (k=0; k<aln->nPos; k++) {
-            if (aln->seqs[i_ind][k]!=45) {
-                for (j=0; j<i; j++) {
-                    j_ind = subset_seq_inds[j];
-                    if (aln->seqs[j_ind][k]!=45) {
-                        comp[j]++;
-                        if (aln->seqs[j_ind][k]==aln->seqs[i_ind][k]) {
-                            same[j]++;
-                        }
-                    }
-                }
-            }
-        }
-        if (maxpd) {
-            for (j=0; j<i; j++) {
-                if (comp[j]==0) {continue;}
-                pd = 1.0 - (double)same[j] / (double)comp[j];
-                runtot = ( pd > runtot ? pd : runtot);
-            }
-        } else {
-            for (j=0; j<i; j++) {
-                if (comp[j]==0) continue;
-                pd = 1.0 - (double)same[j] / (double)comp[j];
-                all_comp = all_comp + comp[j];
-                all_same = all_same + same[j];
-                runtot = runtot + pd;
-                runct++;
-            }
-        }
-    }
-
-    if (maxpd) {
-        pd = runtot;
-    } else {
-        pd = runtot / (double) runct;
-    }
-    printf("%.8f\n",pd);
-
-    if (verbose) {
-        printf("   verbose results:\n");
-        printf("   Running Total: %e\n",runtot);
-        printf("   Running Count: %d\n",runct);
-        printf("   Total Ungapped Residues: %ll\n",all_comp);
-        printf("   Total Matching Residues: %ll\n", all_same);
-        printf("   Weighted ANHD: %.8f\n\n",1.0 - (double)all_same / (double)all_comp);
-    }
-
-    free(comp);
-    free(same);
-    free(subset);
-    free(subset_seq_inds);
-    return(0);
 }
