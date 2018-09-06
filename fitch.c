@@ -86,8 +86,8 @@ int fitch_algorithm(){
 // Input:   pipe into stdin a Newick string with leaf node of the form <name>?<label>:<edge_weight> 
 //              and internal node of the form <subtree>:<edge_weight>
 // Output:  the same tree with internal node labelled by the Fitch algorithm is printed to stdout.
-// Example input:   ((A?10:0.1,B?5:1.2):10,(C?30:0.9,(D?2:0.0,ADF?2:1.2):0.6):0.6);
-// Example output:  ((A?5:0.100000,B?5:1.200000)?2:10.000000,(C?2:0.900000,(D?2:0.000000,ADF?2:1.200000)?2:0.600000)?2:0.600000)?2;
+// Example input:   ((A?10:0.1,B?5:1.2):10,(C?30:0.9,(D?2:0.0,ADF?30:1.2):0.6):0.6);
+// Example output:  ((A?10:0.100000,B?5:1.200000)?5:10.000000,(C?30:0.900000,(D?2:0.000000,ADF?30:1.200000)?30:0.600000)?30:0.600000)?5;
 //                         notice that internal nodes, as well as the root node now have labels. 
 // 
 
@@ -97,36 +97,25 @@ int fitch_algorithm(){
 #define DEBUG       0
 
 // Unit test initialization
-const int READ_WEIGHT_STATE = 3;
-const int READ_LABEL_STATE  = 2;
-const int READ_NAME_STATE   = 1;
-const int OTHER_STATE       = 0;
+const int READ_WEIGHT_STATE = 2;
+const int READ_LABEL_STATE  = 1;
+const int READ_NAME_STATE   = 0;
+const int OTHER_STATE       = 3;
 
+void write_to_mem(int parent, char * buf, int state){
+    int node;
+    node = right[parent] == -1 ? left[parent] : right[parent];
 
-void write_label(int node_counter, char * cur_label){
-    if(cur_label[0] == 0) return; // don't write anything for internal nodes
-                                                                                            #if DEBUG 
-                                                                                                printf("in write_label, cur_label is %s, node_counter is %d\n", cur_label, node_counter); 
-                                                                                            #endif
-    sscanf(cur_label, "%d", &label[node_counter]);
-    cur_label[0] = 0;
-}
+    if(buf[0] == 0) return;
 
-void write_name(int node_counter, char * cur_name){
-    if(cur_name[0] == 0) return;
-    if(strlen(cur_name) >= 10) // too long
-        return;
-    else 
-        strcpy(name_map[node_counter], cur_name);
-    cur_name[0] = 0; 
-}
-
-void write_weight(int node_counter, int parent, char * cur_weight){
-    if(right[parent] == -1)
-        sscanf(cur_weight, "%lf", &weight[parent][0]);
-    else
-        sscanf(cur_weight, "%lf", &weight[parent][1]);
-    cur_weight[0] = 0;
+    if(state == READ_NAME_STATE)
+        strcpy(name_map[node], buf);
+    else if (state == READ_LABEL_STATE)
+        sscanf(buf, "%d", &label[node]);
+    else if (state == READ_WEIGHT_STATE)
+        sscanf(buf, "%lf", &weight[parent][right[parent] != -1]); // if the right parent exists then write to the right
+    
+    buf[0] = 0;
 }
 
 void inc_node(int * node_counter, int * cur_state){
@@ -144,18 +133,16 @@ void set_parent(int par, int chi){
 
 void init(){
     char cur_char;
-    char cur_label[10000];
-    char cur_name[10000];
-    char cur_weight[10000];
+    char cur_mem[3][10000]; // 1. name; 2. label; 3. weight
     int node_counter    = 0;
     int cur_parent      = -1;
     int cur_state       = OTHER_STATE;
 
     // Clear all variables
     root = 0;
-    cur_label[0] = 0;
-    cur_name[0] = 0;
-    cur_weight[0] = 0;
+    cur_mem[0][0] = 0;
+    cur_mem[1][0] = 0;
+    cur_mem[2][0] = 0;
     memset(left,    -1, N_LIM * sizeof(int));
     memset(right,   -1, N_LIM * sizeof(int));
     memset(parent,  -1, N_LIM * sizeof(int));
@@ -165,8 +152,8 @@ void init(){
 
     // Read from stdin a Newick string a Newick string
     while(scanf("%c", &cur_char) == 1){
-                                                                                            #if DEBUG 
-                                                                                                 printf("debug: in loop, cur_label is %s, char is %c\n", cur_name, cur_char); 
+                                                                                            #if DEBUG
+                                                                                                 printf("debug: in loop, cur_label is %s, char is %c\n", cur_mem[2], cur_char); 
                                                                                             #endif
         switch(cur_char){
             case '(': 
@@ -175,35 +162,29 @@ void init(){
                 set_parent(cur_parent, node_counter);
                 break;
             case ',': 
-                write_weight(left[cur_parent], cur_parent, cur_weight);
+                if(cur_state != OTHER_STATE) write_to_mem(cur_parent, cur_mem[cur_state], cur_state);
                 inc_node(&node_counter, &cur_state);
                 set_parent(cur_parent, node_counter);
                 break;
             case ')':
-                write_weight(right[cur_parent], cur_parent, cur_weight);
+                if(cur_state != OTHER_STATE) write_to_mem(cur_parent, cur_mem[cur_state], cur_state);
                 cur_parent = parent[cur_parent];        // decrement level
                 cur_state = OTHER_STATE;
                 break;
             case ':': 
-                write_label(node_counter, cur_label);
+                if(cur_state != OTHER_STATE) write_to_mem(cur_parent, cur_mem[cur_state], cur_state);
                 cur_state = READ_WEIGHT_STATE;
                 break;
             case '?':
-                write_name(node_counter, cur_name);
+                if(cur_state != OTHER_STATE) write_to_mem(cur_parent, cur_mem[cur_state], cur_state);
                 cur_state = READ_LABEL_STATE;
                 break;
             case ';':
                 break;
             default:
-                if(cur_state == READ_NAME_STATE){
-                    cur_name[strlen(cur_name) + 1] = 0;
-                    cur_name[strlen(cur_name)] = cur_char;
-                } else if(cur_state == READ_LABEL_STATE){
-                    cur_label[strlen(cur_label) + 1] = 0;
-                    cur_label[strlen(cur_label)] = cur_char;
-                } else if(cur_state == READ_WEIGHT_STATE){
-                    cur_weight[strlen(cur_weight) + 1] = 0;
-                    cur_weight[strlen(cur_weight)] = cur_char;
+                if(cur_state != OTHER_STATE){
+                    cur_mem[cur_state][strlen(cur_mem[cur_state]) + 1] = 0;
+                    cur_mem[cur_state][strlen(cur_mem[cur_state])] = cur_char;
                 }
         }
     }
@@ -219,26 +200,15 @@ void write_dfs(int c, char * builder){
 
     // Left child
     strcat(builder, "(");
+
     write_dfs(left[c], builder);
-        // Label
-    strcat(builder, "?");
-    sprintf(buffer, "%d", label[c]);
-    strcat(builder, buffer);
-        // Weight
-    strcat(builder, ":");
-    sprintf(buffer, "%lf", weight[c][0]);
+    sprintf(buffer, "?%d:%lf", label[left[c]], weight[c][0]);
     strcat(builder, buffer);
 
     // Right child
     strcat(builder, ",");
     write_dfs(right[c], builder);
-        // Label
-    strcat(builder, "?");
-    sprintf(buffer, "%d", label[c]);
-    strcat(builder, buffer);
-        // Weight
-    strcat(builder, ":");
-    sprintf(buffer, "%lf", weight[c][1]);
+    sprintf(buffer, "?%d:%lf", label[right[c]], weight[c][1]);
     strcat(builder, buffer);
 
     strcat(builder, ")");
@@ -256,12 +226,40 @@ int write_newick(){
 
 int main(){
     init();
-    fitch_algorithm();
-
-
                                                                                             #if DEBUG
                                                                                                 int i;
                                                                                                 int n = 50;
+
+                                                                                                printf("debug: this print out the parent, left, right, label, name_map and set\n");
+                                                                                                for(i = 0; i < n; i++){
+                                                                                                    printf("%d ", parent[i]);
+                                                                                                }
+                                                                                                printf("\n"); 
+                                                                                                for(i = 0; i < n; i++){
+                                                                                                    printf("%d ", left[i]);
+                                                                                                }
+                                                                                                printf("\n"); 
+                                                                                                for(i = 0; i < n; i++){
+                                                                                                    printf("%d ", right[i]);
+                                                                                                }
+                                                                                                printf("\n"); 
+                                                                                                for(i = 0; i < n; i++){
+                                                                                                    printf("%d ", label[i]);
+                                                                                                }
+                                                                                                printf("\n"); 
+                                                                                                for(i = 0; i < n; i++){
+                                                                                                    printf("%s ", name_map[i]);
+                                                                                                }
+                                                                                                printf("\n"); 
+                                                                                                for(i = 0; i < n; i++){
+                                                                                                    printf("%d ", set[i]);
+                                                                                                }
+                                                                                                printf("\n"); 
+                                                                                            #endif
+    fitch_algorithm();
+                                                                                            #if DEBUG
+                                                                                                // int i;
+                                                                                                // int n = 50;
 
                                                                                                 printf("debug: this print out the parent, left, right, label, name_map and set\n");
                                                                                                 for(i = 0; i < n; i++){
