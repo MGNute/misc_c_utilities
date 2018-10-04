@@ -8,41 +8,180 @@
     the steps back through the matrix F. 
  */
 
+ void inplace_reverse(char * str)
+{
+  if (str)
+  {
+    char * end = str + strlen(str) - 1;
 
-long long needleScore(int len1, char* seq1, int len2, char* seq2, long long* F, long long d, long long m, long long g)
+    // swap the values in the two given variables
+    // XXX: fails when a and b refer to same memory location
+#   define XOR_SWAP(a,b) do\
+    {\
+      a ^= b;\
+      b ^= a;\
+      a ^= b;\
+    } while (0)
+
+    // walk inwards from both ends of the string, 
+    // swapping until we get to the middle
+    while (str < end)
+    {
+      XOR_SWAP(*str, *end);
+      str++;
+      end--;
+    }
+#   undef XOR_SWAP
+  }
+}
+
+long long needleScore(int len1, char* seq1, int len2, char* seq2, long long* F, long long d, long long m, long long g, 
+						long long a, int* dirmat)
 {
     // assumes that Fmat is big enough to handle the scores
     // d = difference score, m = match score, g = gap
-    int i, j;
+    int i, j, p, r, c;
     long long mat, del, ins, tmp;
+	
+	int dir, dirtmp;
+	// char *ast = "*";
     
     // fill the edges of F:
     for (i=0; i<len1+1;i++)
     {
-        F[i*(len2+1)]=i*d; //should this be i*(len2+1)+1?
+        F[i*(len2+1)]=i*g; //should this be i*(len2+1)+1?
     }
     for (j=0; j<len2+1;j++)
     {
-        F[j]=j*d;
+        F[j]=j*g;
     }
+	// fill the middle of F:
     for (i=1; i<len1+1; i++)
     {
         for (j=1; j<len2+1; j++)
         {
-            mat = F[(i-1)*(len2+1)+(j-1)] + (seq1[i-1]==seq2[j-1] ? m : d);
-            del = F[(i-1)*(len2+1)+(j)] + g;
-            ins = F[(i)*(len2+1)+(j-1)] + g;
+            mat = F[(i-1)*(len2+1)+(j-1)] + (seq1[i-1]==42 || seq2[j-1]==42 ? a : (seq1[i-1]==seq2[j-1] ? m : d)); // (dir = 1)
+            del = F[(i-1)*(len2+1)+(j)] + g; // from above (dir = 2)
+            ins = F[(i)*(len2+1)+(j-1)] + g; // from the left (dir = 0)
             tmp = (mat > del ? mat : del);
+			dirtmp = (mat > del ? 1 : 2);
             F[i*(len2+1)+(j)] = (tmp > ins ? tmp : ins);
+			dir = (tmp > ins ? dirtmp : 0);
+			dirmat[i*(len2+1)+(j)] = dir;
         }
     }
+
     return F[(len2+1)*(len1+1)-1];
 }
 
-void getNeedleAlignment(int len1, char* seq1, int len2, char* seq2, long long* F, long long d, long long m, long long g, char* aln1, char* aln2)
+long long getNeedleAlignment(int len1, char* seq1, int len2, char* seq2, long long* F, long long d, long long m, long long g, 
+						long long a, char* aln1, char* aln2, int* dirmat)
 {
-    printf("The function to collect and return the alignment has not been implemented yet.\n");
+	int i, j, p, r, c;
+    long long mat, del, ins, tmp, best_score;
+	int dir, dirtmp;
+	
+	best_score = needleScore(len1, seq1, len2, seq2, F, d, m, g, a, dirmat);
+	
+	p = 0;
+	r = len1; c = len2;
+	// get the sequences
+	while (r > 0 && c > 0)
+	{
+		dir = dirmat[r*(len2+1)+c];
+		if (dir == 0)
+		{
+			aln1[p] = 45;
+			aln2[p] = seq2[c-1];
+			c--;
+		} else if (dir == 2) {
+			aln1[p] = seq1[r-1];
+			aln2[p] = 45;
+			r--;
+		} else {
+			aln1[p] = seq1[r-1];
+			aln2[p] = seq2[c-1];
+			r--;
+			c--;
+		}
+		p++;
+	}
+	inplace_reverse(aln1);
+	inplace_reverse(aln2);
+	aln1[p] = 0;
+	aln2[p] = 0;
+	return best_score;
 }
+
+/* void getNeedleAlignment(int len1, char* seq1, int len2, char* seq2, long long* F, long long d, long long m, long long g, char* aln1, char* aln2, int* dirmat)
+{
+    // printf("The function to collect and return the alignment has not been implemented yet.\n");
+	int r, c;
+	long long d1, ma, d2;
+	int dir; // just 0, 1 or 2. 0 = go left, 1 = go up-left, 2 = go up.
+	int p;
+	r=len1; c=len2; p=0;
+	// printf("len1=%d\tlen2=%d\n",len1,len2);
+	
+	while(r >0 || c >0)
+	{
+		if (r>0) { // left value
+			d1 = F[(r)*(len2+1)+c-1];
+		} else {
+			d1 = -99999999;
+		}
+		if (r>0 && c > 0) { // match value (top left)
+			ma = F[(r-1)*(len2+1)+(c-1)];
+		} else {
+			ma = -99999999;
+		}
+		if (c > 0) { // top value
+			d2 = F[(r-1)*(len2+1)+(c)];
+		} else {
+			d2 = -99999999;
+		}
+		
+		// determin which direction to go
+		if (d1 > ma) {
+			if (d1 > d2) {
+				dir = 0;
+			} else {
+				dir = 2;
+			}
+		} else {
+			if (ma > d2) {
+				dir = 1;
+			} else {
+				dir = 2;
+			}
+		}
+		
+		// advance and add to aligned sequences
+		
+		if (dir == 0) { // left
+			// printf("p=%d\ta1= %c\ta2= %c, (r,c)=(%d,%d)\n",p,45,seq2[len2-c],r,c);
+			aln1[p] = 45; //hyphen
+			aln2[p] = seq2[c-1]; 
+			c--;
+		} else if (dir == 1) { //diagonal
+			// printf("p=%d\ta1= %c\ta2= %c, (r,c)=(%d,%d)\n",p,seq1[len1-r],seq2[len2-c],r,c);
+			aln1[p] = seq1[r-1];
+			aln2[p] = seq2[c-1];
+			r--;
+			c--;
+		} else { // up
+			// printf("p=%d\ta1= %c\ta2= %c, (r,c)=(%d,%d)\n",p,seq1[len1-r],45,r,c);
+			aln1[p] = seq1[r-1];
+			aln2[p] = 45;
+			r--;
+		}
+		p++;
+	}
+	inplace_reverse(aln1);
+	inplace_reverse(aln2);
+	aln1[p]=0;
+	aln2[p]=0;
+} */
 
 int intArrayMax(int* intarr, int len)
 {
@@ -55,6 +194,20 @@ int intArrayMax(int* intarr, int len)
     return tmx;
 }
 
+void print_f_matrix(long long *F, int l1, int l2)
+{
+	printf("\n\n");
+	int r, c;
+	for (r=0; r< l1+1; r++) 
+	{
+		for (c=0; c< l2+1; c++) 
+		{
+			printf("%lld, ", F[r*(l2+1)+c]);
+		}
+		printf("\n");
+	}
+	printf("\n");
+}
 
 int main(int argc, char *argv[])
 {
@@ -82,9 +235,9 @@ int main(int argc, char *argv[])
         
     // COST SCORES (change before compiling if desired): 
     //      (SHOULD PROBABLY MAKE THESE A COMMAND LINE ARGUMENT OR FROM A SETTINGS FILE OR SOMETHING)
-    long long d, m, g, res;
+    long long d, m, g, a, res;
     // d = mismatch penalty (*D*ifferent), m = Match score, g = Gap penalty.
-    d = -1; m = 1; g = -1; 
+    d = -1; m = 1; g = -1; a = 1;
         
     if (argc>2) {
         char* ns1_str = argv[1];
@@ -143,6 +296,7 @@ int main(int argc, char *argv[])
         
             
         long long* myFmat = (long long *)malloc((max_sl1+10) * (max_sl2+10) * sizeof(long long));
+		int* dirmat = (int*)malloc((max_sl1+10) * (max_sl2+10) * sizeof(int));
         
         FILE *results_f = fopen(outfile_path,"w");
         
@@ -150,7 +304,7 @@ int main(int argc, char *argv[])
         for (i=0; i<ns1; i++) {
             fgets(c1, seq_lens1[i]+1, seq1_f);
             for (j=0; j<ns2; j++) {
-                res = needleScore(seq_lens1[i], c1, seq_lens2[j], c2[j], myFmat, d, m , g);
+                res = needleScore(seq_lens1[i], c1, seq_lens2[j], c2[j], myFmat, d, m , g, a, dirmat);
                 fprintf(results_f,"%lld\t",res);
             }
             fprintf(results_f,"\n");
@@ -165,6 +319,7 @@ int main(int argc, char *argv[])
         }
         
         free(myFmat);
+		free(dirmat);
         free(c1);
         free(c2);
         free(seq_lens1);
@@ -174,7 +329,7 @@ int main(int argc, char *argv[])
         // take two newline-terminated sequences from standard input, 1000 characters at a time
         char* s1 = (char *)malloc(1000);
         char* s2 = (char *)malloc(1000);
-        size_t s1len, s2len;
+        size_t s1len, s2len, totlen;
         long s1size, s2size;
         s1size = 1000; s2size = 1000;
         s1len = 0; s2len = 0;
@@ -211,6 +366,10 @@ int main(int argc, char *argv[])
             s2[s2len-1]='\0';
             s2len = strlen(s2);
         }
+		
+		totlen = s1len + s2len;
+		char* aln1 = (char *)malloc(totlen + 1);
+		char* aln2 = (char *)malloc(totlen + 1);
         
         // For Debugging:
         // printf("s1len: %d\ts2len: %d\n",s1len,s2len);
@@ -218,9 +377,21 @@ int main(int argc, char *argv[])
         // printf("%s\n",s2);
         
         long long* myFmat = (long long *)malloc((s1len+2) * (s2len+2) * sizeof(long long));
-        long long d, m, g, res;
-        d = -1; m = 1; g = -1;
-        res = needleScore(s1len, s1, s2len, s2, myFmat, d, m , g);
-        printf("%lld\n",res);
+		int* dirmat = (int *)malloc((s1len+2) * (s2len+2) * sizeof(int));
+        // long long d, m, g, a, res;
+        d = -1; m = 2; g = -4; a = 1;
+        res = getNeedleAlignment(s1len, s1, s2len, s2, myFmat, d, m, g, a, aln1, aln2, dirmat);
+		
+        // printf("%lld\n",res);
+		// getNeedleAlignment(s1len, s1, s2len, s2, myFmat, d, m, g, a, aln1, aln2);
+		printf(aln1);
+		printf("\t");
+		printf(aln2);
+		printf("\n");
+		// print_f_matrix(myFmat,s1len, s2len);
+		
+		free(myFmat);
+		free(dirmat);
     }
+	exit(0);
 }
