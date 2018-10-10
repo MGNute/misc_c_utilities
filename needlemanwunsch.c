@@ -209,13 +209,20 @@ void print_f_matrix(long long *F, int l1, int l2)
 	printf("\n");
 }
 
+void print_help()
+{
+
+}
+
 int main(int argc, char *argv[])
 {
     /*
-     * There are two usage options, one that does a bit batch of these with files in a particular structure
-     * (to avoid counting sequence lengths and the like):
+     * There are two usage options, one that does a big batch of these with files in a particular structure
+     * (to avoid counting sequence lengths and the like).
      *
-     *  usage: "<num_seqs_file1> <seq_len_file1> <sequences_file1> ...(same for 2)..."
+     * To use this option, the first argument must be "-f"
+     *
+     *  usage: -f "<num_seqs_file1> <seq_len_file1> <sequences_file1> ...(same for 2)..."
         where:
             <num_seqs_file1> is the number of sequences in the first set of files.
             <seq_len_file1> is a binary file with consecutive 32-bit integers representing the
@@ -225,7 +232,7 @@ int main(int argc, char *argv[])
      
      *
      * The other just takes two sequences from STDIN (each newline terminated) and prints the score back to 
-     * STDOUT. This one requires no command line arguments so as longas the user provides more than two
+     * STDOUT. This one requires no command line arguments so as long as the user provides more than two
      * arguments we assume the first one is what they want.
      *
      *
@@ -326,35 +333,36 @@ int main(int argc, char *argv[])
         free(seq_lens2);
         free(seq_pos2);
     } else {
-        // take two newline-terminated sequences from standard input, 1000 characters at a time
-        char* s1 = (char *)malloc(1000);
-        char* s2 = (char *)malloc(1000);
+        // take two newline-terminated sequences from standard input, 2000 characters at a time
+        // Right now there is a bug in this when the input is longer than 2k sequences_file1
+        char* s1 = (char *)malloc(2000);
+        char* s2 = (char *)malloc(2000);
         size_t s1len, s2len, totlen;
         long s1size, s2size;
-        s1size = 1000; s2size = 1000;
+        s1size = 2000; s2size = 2000;
         s1len = 0; s2len = 0;
         
         while (1)
         {
-            fgets(&s1[s1len],1000,stdin);
+            fgets(&s1[s1len],2000,stdin);
             s1len = strlen(s1);
             if (s1len+1 < s1size) {
                 break;
             } else {
-                s1 = (char *)realloc(s1, s1size + 1000 - 1);
+                s1 = (char *)realloc(s1, s1size + 2000 - 1);
             }
-            s1size += 999;
+            s1size += 1999;
         }
         while (1)
         {
-            fgets(&s2[s2len],1000,stdin);
+            fgets(&s2[s2len],2000,stdin);
             s2len = strlen(s2);
             if (s2len+1 < s2size) {
                 break;
             } else {
-                s2 = (char *)realloc(s2, s2size + 1000 - 1);
+                s2 = (char *)realloc(s2, s2size + 2000 - 1);
             }
-            s2size += 999;
+            s2size += 1999;
         }
         if (s1[s1len-1]=='\n')
         {
