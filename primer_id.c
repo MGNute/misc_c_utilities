@@ -143,7 +143,7 @@ int main(int argc, char *argv[])
         // printf("  ");
     }
     
-    
+    printf("\n");
     
     
     // fgets(linebuf, 200, stdin);
