@@ -31,9 +31,19 @@ int main(int argc, char *argv[])
     slentemp = strlen(linebuf);
     printf("\tString Length: %d\nslen: %d\n",slentemp,slen); */
     
-    int i, j, r, tot, a;
+    int i, j, r, tot, a, verbose;
     char c, nuc;
     float q;
+    
+    verbose = 0;
+    // printf("verbose: %d\n",verbose);
+    for (i=0;i<argc; i++)
+    {
+        if (!strcmp("-v", argv[i])) {verbose = 1;}
+        // printf("%s - %d\n",argv[i],verbose);
+    }
+    
+    
     for (i=0; i<5*MP; i++)
     {
         maxprimer[i]=0;
@@ -50,30 +60,31 @@ int main(int argc, char *argv[])
             c = linebuf[i];
             switch(c) {
                 case 'A':
-                    r = 0; break;
+                    r = 1; break;
                 case 'a':
-                    r = 0; break;
+                    r = 1; break;
                 case 'C':
-                    r = 1; break;
+                    r = 2; break;
                 case 'c':
-                    r = 1; break;
+                    r = 2; break;
                 case 'G':
-                    r = 2; break;
+                    r = 3; break;
                 case 'g':
-                    r = 2; break;
+                    r = 3; break;
                 case 'T':
-                    r = 3; break;
+                    r = 4; break;
                 case 't':
-                    r = 3; break;
+                    r = 4; break;
                 default:
-                    r=4;
+                    r=5;
             }
             
             maxprimer[i*5+r]++;
         }
         nlines++;
     }
-    printf("# lines: %d\n",nlines);
+    
+    if (verbose) printf("# lines: %d\n",nlines);
     
     for (i=0; i<MP; i++)
     {
@@ -86,18 +97,21 @@ int main(int argc, char *argv[])
         }
     }
     
-    printf("first 20 cols:\n");
-    printf("A: ");
-    for (i=0;i<20;i++) printf("%.1f ",maxprimer_f[i*5]);
-    printf("\nC: ");
-    for (i=0;i<20;i++) printf("%.1f ",maxprimer_f[i*5+1]);
-    printf("\nT: ");
-    for (i=0;i<20;i++) printf("%.1f ",maxprimer_f[i*5+2]);
-    printf("\nG: ");
-    for (i=0;i<20;i++) printf("%.1f ",maxprimer_f[i*5+3]);
-    printf("\n?: ");
-    for (i=0;i<20;i++) printf("%.1f ",maxprimer_f[i*5+4]);
-    printf("\n\nConsensus:\n");
+    if (verbose)
+    {
+        printf("first 20 cols:\n");
+        printf("A: ");
+        for (i=0;i<20;i++) printf("%.1f ",maxprimer_f[i*5]);
+        printf("\nC: ");
+        for (i=0;i<20;i++) printf("%.1f ",maxprimer_f[i*5+1]);
+        printf("\nT: ");
+        for (i=0;i<20;i++) printf("%.1f ",maxprimer_f[i*5+2]);
+        printf("\nG: ");
+        for (i=0;i<20;i++) printf("%.1f ",maxprimer_f[i*5+3]);
+        printf("\n?: ");
+        for (i=0;i<20;i++) printf("%.1f ",maxprimer_f[i*5+4]);
+        printf("\n\nConsensus:\n");
+    }
     
     for (i=0; i<20; i++) {
         c=0;
