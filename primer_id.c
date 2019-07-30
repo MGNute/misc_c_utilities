@@ -148,13 +148,13 @@ int main(int argc, char *argv[])
             case 5:  // 0101 <-- A or G
                 nuc = (no_complement ? 'R' : 'Y' ); break;
             case 6:  // 0110 <-- C or G
-                nuc = (no_complement ? 'S' : 'W' ); break;
+                nuc = (no_complement ? 'S' : 'S' ); break;
             case 7:  // 0111 <-- A, C, or G
                 nuc = (no_complement ? 'V' : 'B' ); break;
             case 8:
                 nuc = (no_complement ? 'T' : 'A' ); break;
             case 9:  // 1001 <-- T or A
-                nuc = (no_complement ? 'W' : 'S' ); break;
+                nuc = (no_complement ? 'W' : 'W' ); break;
             case 10: // 1010 <-- T or C
                 nuc = (no_complement ? 'Y' : 'R' ); break;
             case 11: // 1011 <-- T, C or A
