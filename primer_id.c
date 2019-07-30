@@ -2,10 +2,10 @@
 #include<stdlib.h>
 #include<string.h>
 
-#define MP 50
+#define MP 30
 #define maxlines 1000000
-#define nuc_cutoff 0.05
-#define takecomp 0
+#define pct_cutoff 0.05
+
 
 char linebuf[10000];
 int nlines;
@@ -31,9 +31,11 @@ int main(int argc, char *argv[])
     slentemp = strlen(linebuf);
     printf("\tString Length: %d\nslen: %d\n",slentemp,slen); */
     
-    int i, j, r, tot, a, verbose;
+    int i, j, r, tot, a;
+    int verbose, no_complement;
     char c, nuc;
-    float q;
+    float q, nuc_cutoff;
+    nuc_cutoff = pct_cutoff;
     
     verbose = 0;
     // printf("verbose: %d\n",verbose);
@@ -41,6 +43,21 @@ int main(int argc, char *argv[])
     {
         if (!strcmp("-v", argv[i])) {verbose = 1;}
         // printf("%s - %d\n",argv[i],verbose);
+    }
+    
+    no_complement = 1;
+    // printf("verbose: %d\n",verbose);
+    for (i=0;i<argc; i++)
+    {
+        if (!(strcmp("-c", argv[i]) || strcmp("--comp",argv[i]))) {no_complement = 0;}
+        // printf("%s - %d\n",argv[i],verbose);
+    }
+
+    for (i=0;i<argc; i++)
+    {
+        if (!(strcmp("-p", argv[i]) || strcmp("--cutoff",argv[i]))) {
+            nuc_cutoff = atof(argv[i + 1]);
+        }
     }
     
     
@@ -60,23 +77,23 @@ int main(int argc, char *argv[])
             c = linebuf[i];
             switch(c) {
                 case 'A':
-                    r = 1; break;
+                    r = 0; break;
                 case 'a':
-                    r = 1; break;
+                    r = 0; break;
                 case 'C':
-                    r = 2; break;
+                    r = 1; break;
                 case 'c':
-                    r = 2; break;
+                    r = 1; break;
                 case 'G':
-                    r = 3; break;
+                    r = 2; break;
                 case 'g':
-                    r = 3; break;
+                    r = 2; break;
                 case 'T':
-                    r = 4; break;
+                    r = 3; break;
                 case 't':
-                    r = 4; break;
+                    r = 3; break;
                 default:
-                    r=5;
+                    r=4;
             }
             
             maxprimer[i*5+r]++;
@@ -99,21 +116,21 @@ int main(int argc, char *argv[])
     
     if (verbose)
     {
-        printf("first 20 cols:\n");
+        printf("first %d cols:\n", MP);
         printf("A: ");
-        for (i=0;i<20;i++) printf("%.1f ",maxprimer_f[i*5]);
+        for (i=0;i<MP;i++) printf("%.2f ",maxprimer_f[i*5]);
         printf("\nC: ");
-        for (i=0;i<20;i++) printf("%.1f ",maxprimer_f[i*5+1]);
-        printf("\nT: ");
-        for (i=0;i<20;i++) printf("%.1f ",maxprimer_f[i*5+2]);
+        for (i=0;i<MP;i++) printf("%.2f ",maxprimer_f[i*5+1]);
         printf("\nG: ");
-        for (i=0;i<20;i++) printf("%.1f ",maxprimer_f[i*5+3]);
+        for (i=0;i<MP;i++) printf("%.2f ",maxprimer_f[i*5+2]);
+        printf("\nT: ");
+        for (i=0;i<MP;i++) printf("%.2f ",maxprimer_f[i*5+3]);
         printf("\n?: ");
-        for (i=0;i<20;i++) printf("%.1f ",maxprimer_f[i*5+4]);
+        for (i=0;i<MP;i++) printf("%.2f ",maxprimer_f[i*5+4]);
         printf("\n\nConsensus:\n");
     }
     
-    for (i=0; i<20; i++) {
+    for (i=0; i<MP; i++) {
         c=0;
         if (maxprimer_f[i*5] > nuc_cutoff) c = c | 1;
         if (maxprimer_f[i*5+1] > nuc_cutoff) c = c | 2;
@@ -121,35 +138,35 @@ int main(int argc, char *argv[])
         if (maxprimer_f[i*5+3] > nuc_cutoff) c = c | 8;
         switch((int)c) {
             case 1:
-                nuc = (takecomp ? 'A' : 'T' ); break;
+                nuc = (no_complement ? 'A' : 'T' ); break;
             case 2:
-                nuc = (takecomp ? 'C' : 'G' ); break;
-            case 3:
-                nuc = (takecomp ? 'M' : 'K' ); break;
+                nuc = (no_complement ? 'C' : 'G' ); break;
+            case 3:  // 0011 <-- A or C
+                nuc = (no_complement ? 'M' : 'K' ); break;
             case 4:
-                nuc = (takecomp ? 'T' : 'A' ); break;
-            case 5:
-                nuc = (takecomp ? 'W' : 'W' ); break;
-            case 6:
-                nuc = (takecomp ? 'Y' : 'R' ); break;
-            case 7:
-                nuc = (takecomp ? 'H' : 'D' ); break;
+                nuc = (no_complement ? 'G' : 'C' ); break;
+            case 5:  // 0101 <-- A or G
+                nuc = (no_complement ? 'R' : 'Y' ); break;
+            case 6:  // 0110 <-- C or G
+                nuc = (no_complement ? 'S' : 'W' ); break;
+            case 7:  // 0111 <-- A, C, or G
+                nuc = (no_complement ? 'V' : 'B' ); break;
             case 8:
-                nuc = (takecomp ? 'G' : 'C' ); break;
-            case 9:
-                nuc = (takecomp ? 'R' : 'Y' ); break;
-            case 10:
-                nuc = (takecomp ? 'S' : 'S' ); break;
-            case 11:
-                nuc = (takecomp ? 'V' : 'B' ); break;
-            case 12:
-                nuc = (takecomp ? 'K' : 'M' ); break;
-            case 13:
-                nuc = (takecomp ? 'D' : 'H' ); break;
-            case 14:
-                nuc = (takecomp ? 'B' : 'V' ); break;
-            case 15:
-                nuc = (takecomp ? 'N' : 'N' ); break;
+                nuc = (no_complement ? 'T' : 'A' ); break;
+            case 9:  // 1001 <-- T or A
+                nuc = (no_complement ? 'W' : 'S' ); break;
+            case 10: // 1010 <-- T or C
+                nuc = (no_complement ? 'Y' : 'R' ); break;
+            case 11: // 1011 <-- T, C or A
+                nuc = (no_complement ? 'H' : 'B' ); break;
+            case 12: // 1100 <-- T or G
+                nuc = (no_complement ? 'K' : 'M' ); break;
+            case 13: // 1101 <-- T, G or A
+                nuc = (no_complement ? 'D' : 'H' ); break;
+            case 14: // 1110 <-- T, G or C
+                nuc = (no_complement ? 'B' : 'V' ); break;
+            case 15: // 1111 <-- any
+                nuc = (no_complement ? 'N' : 'N' ); break;
         }
         printf("%c",nuc);
         // printf("%d-%c-",c,nuc);
